@@ -1,0 +1,19 @@
+metric,value
+runs,100
+assumed_task_seconds,120
+B0_static_exposure_s,3480
+B1_oidc_exposure_s,780
+B2_vault_exposure_s,780
+tessera_exposure_ms_p50,0.254
+tessera_exposure_ms_p95,0.443
+overhead_ms_p50,1.769
+overhead_ms_p95,2.513
+decoy_detect_ms_p50,0.474
+decoy_detect_ms_p95,0.932
+decision_cases,10
+deny_precision,1.0
+deny_recall,1.0
+false_denies,0
+S4_orphan_reaped,True
+S5_retry_no_false_decoy,True
+environment,"SIMULATED cloud, not real AWS"
