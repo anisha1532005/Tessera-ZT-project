@@ -1,7 +1,10 @@
+import functools
 import hashlib
 import secrets
+import threading
 import time
 
+from app import db
 from app.cloud import FakeCloud
 from app.decision import Posture, decide
 from app.manifest import load_manifest
@@ -14,6 +17,40 @@ runs = {}       # run id -> info shown on the dashboard
 
 # Baseline credential lifetimes in seconds, used to compare exposure
 BASELINES = {"static": 3600, "oidc": 900, "vault": 900}
+
+LOCK = threading.RLock()
+
+
+def _save():
+    db.save(tokens=tokens, canaries=canaries, runs=runs, sessions=cloud.sessions)
+
+
+def _load():
+    tokens.update(db.load("tokens"))
+    canaries.update(db.load("canaries"))
+    runs.update(db.load("runs"))
+    cloud.sessions.update(db.load("sessions"))
+
+
+def _writes(fn):
+    """Run under a lock and save everything to the database afterwards."""
+    @functools.wraps(fn)
+    def inner(*args, **kwargs):
+        with LOCK:
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                _save()
+    return inner
+
+
+def _reads(fn):
+    """Run under a lock, no save."""
+    @functools.wraps(fn)
+    def inner(*args, **kwargs):
+        with LOCK:
+            return fn(*args, **kwargs)
+    return inner
 
 
 def _h(t):
@@ -44,6 +81,7 @@ def _new_run(run_id, stage, environment, target, outcome, reasons, severity):
     return run
 
 
+@_writes
 def request_access(manifest_text, posture, remediation=False):
     run_id = secrets.token_hex(4)
     try:
@@ -101,6 +139,7 @@ def _expire(rec, now):
         run["end_reason"] = "ttl_backstop"
 
 
+@_writes
 def exchange(token, source="unknown"):
     rec = tokens.get(_h(token))
     if rec is None:
@@ -127,6 +166,7 @@ def exchange(token, source="unknown"):
     return {"access_key": key, "secret": secrets.token_hex(16), "expires_in": 300, "_decoy": True}
 
 
+@_writes
 def use(access_key, action, source="unknown"):
     c = canaries.get(access_key)
     if c:
@@ -141,6 +181,7 @@ def use(access_key, action, source="unknown"):
     return ok
 
 
+@_writes
 def complete(run_id, status="success"):
     t0 = time.perf_counter()
     now = time.time()
@@ -161,6 +202,7 @@ def complete(run_id, status="success"):
     return {"revoked": n}
 
 
+@_writes
 def reap():
     now = time.time()
     n = 0
@@ -173,6 +215,7 @@ def reap():
     return n
 
 
+@_reads
 def snapshot():
     now = time.time()
     allruns = list(runs.values())
@@ -213,3 +256,6 @@ def snapshot():
         },
         "runs": shown,
     }
+
+
+_load()

@@ -1,3 +1,7 @@
+import os
+
+os.environ["TESSERA_DB"] = ":memory:"
+
 import csv
 import statistics
 import time

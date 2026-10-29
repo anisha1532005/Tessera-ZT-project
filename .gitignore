@@ -4,3 +4,4 @@ __pycache__
 audit.log
 *.log
 tessera.db
+tessera.db
